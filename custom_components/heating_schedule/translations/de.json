@@ -3,10 +3,9 @@
     "step": {
       "user": {
         "title": "Neue Heizzone",
-        "description": "Eine Zone fasst ein oder mehrere Thermostate zusammen, die demselben Wochenplan folgen.",
+        "description": "Eine Zone erzeugt eine Zeitplan-Entität (schedule.*) und je Preset eine einstellbare Temperatur. Die Thermostate steuert z. B. RoomMind.",
         "data": {
           "name": "Name der Zone",
-          "climate_entities": "Thermostate",
           "presets": "Temperatur-Presets (kommagetrennt)"
         },
         "data_description": {
@@ -23,7 +22,6 @@
       "init": {
         "title": "Heizzone bearbeiten",
         "data": {
-          "climate_entities": "Thermostate",
           "presets": "Temperatur-Presets (kommagetrennt)"
         }
       }
@@ -39,7 +37,7 @@
       "fields": {
         "zone_id": {
           "name": "Zone",
-          "description": "Name oder ID der Heizzone."
+          "description": "Name der Zone oder ihre schedule-Entität."
         },
         "days": {
           "name": "Tage",
@@ -48,16 +46,6 @@
         "blocks": {
           "name": "Blöcke",
           "description": "Liste aus {start: 'HH:MM', preset: '<key>'}. Der erste Block beginnt immer um 00:00."
-        }
-      }
-    },
-    "apply": {
-      "name": "Zeitplan anwenden",
-      "description": "Sendet die aktuelle Solltemperatur erneut an die Thermostate (verwirft manuelle Änderungen).",
-      "fields": {
-        "zone_id": {
-          "name": "Zone",
-          "description": "Name oder ID der Heizzone."
         }
       }
     }

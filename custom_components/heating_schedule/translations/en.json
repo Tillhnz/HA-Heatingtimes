@@ -3,10 +3,9 @@
     "step": {
       "user": {
         "title": "New heating zone",
-        "description": "A zone groups one or more thermostats that follow the same weekly schedule.",
+        "description": "A zone creates a schedule entity (schedule.*) and one adjustable temperature per preset. Thermostats are controlled e.g. by RoomMind.",
         "data": {
           "name": "Zone name",
-          "climate_entities": "Thermostats",
           "presets": "Temperature presets (comma separated)"
         },
         "data_description": {
@@ -23,7 +22,6 @@
       "init": {
         "title": "Edit heating zone",
         "data": {
-          "climate_entities": "Thermostats",
           "presets": "Temperature presets (comma separated)"
         }
       }
@@ -39,7 +37,7 @@
       "fields": {
         "zone_id": {
           "name": "Zone",
-          "description": "Name or ID of the heating zone."
+          "description": "Zone name or its schedule entity."
         },
         "days": {
           "name": "Days",
@@ -48,16 +46,6 @@
         "blocks": {
           "name": "Blocks",
           "description": "List of {start: 'HH:MM', preset: '<key>'}. The first block always starts at 00:00."
-        }
-      }
-    },
-    "apply": {
-      "name": "Apply schedule",
-      "description": "Re-sends the current target temperature to the thermostats (discards manual changes).",
-      "fields": {
-        "zone_id": {
-          "name": "Zone",
-          "description": "Name or ID of the heating zone."
         }
       }
     }

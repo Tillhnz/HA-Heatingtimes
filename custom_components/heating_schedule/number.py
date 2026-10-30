@@ -38,4 +38,4 @@ class PresetTemperature(ZoneEntity, NumberEntity):
         return self.controller.temps.get(self._key)
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.controller.async_set_temp(self._key, value)
+        self.controller.set_temp(self._key, value)

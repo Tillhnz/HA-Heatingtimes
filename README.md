@@ -2,20 +2,18 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 
-Wochenzeitpläne für deine Thermostate, bedienbar über eine Dashboard-Karte im Stil der Tado-App.
+Schöne Wochenzeitpläne fürs Heizen – als echte `schedule.*`-Entität, bedienbar über eine Dashboard-Karte im Stil der Tado-App. Die Thermostate selbst steuerst du mit einer anderen Integration, z. B. **[RoomMind](https://github.com/snazzybean/roommind)**.
 
-- **Zeitblöcke pro Wochentag** (z. B. 06:00 Komfort, 08:30 Eco, 22:30 Nacht)
-- **Temperaturen sind Variablen:** Jedes Preset (Komfort, Eco, Nacht, …) ist eine eigene `number`-Entität. Änderst du „Komfort“ von 21° auf 21,5°, gilt das sofort in allen Blöcken, die Komfort nutzen.
-- **Dashboard-Karte:** Solltemperatur, Raumtemperatur, nächster Wechsel, Modus-Chips, Presets mit − / +, 24-h-Zeitleiste, Blockeditor und „Speichern für Mo–Fr / Sa+So / Alle Tage“
-- **Modus pro Zone:** Zeitplan, festes Preset oder Aus
-- **Manuelle Änderungen bleiben bis zum nächsten Block** (wie bei Tado), weil Temperaturen nur bei Blockwechseln gesendet werden
-- Mehrere Thermostate pro Zone, beliebig viele Zonen
-- Keine YAML-Konfiguration, kein separates Laden der Karte nötig
+- **Pro Zone eine Zeitplan-Entität** (`schedule.wohnzimmer_zeitplan`), die sich wie ein normaler Zeitplan-Helfer verhält
+- **Temperatur je Block:** Jeder Zeitblock trägt `temperature` in seinen Daten. RoomMind übernimmt diese Temperatur direkt als Solltemperatur.
+- **Temperaturen sind Variablen:** Jedes Preset (Komfort, Eco, Nacht, …) ist eine `number`-Entität. Änderst du „Komfort“ von 21° auf 21,5°, ändern sich alle Komfort-Blöcke mit.
+- **Dashboard-Karte:** aktuelle Solltemperatur, nächster Wechsel, Presets mit − / +, 24-h-Zeitleiste pro Tag, Blockeditor, „Speichern für Mo–Fr / Sa+So / Alle Tage“
+- Keine Thermostat-Auswahl, kein YAML, die Karte wird automatisch geladen
 
 ## Installation
 
 ### Über HACS
-1. HACS → ⋮ → **Benutzerdefinierte Repositories** → URL dieses Repos, Kategorie **Integration**
+1. HACS → ⋮ → **Benutzerdefinierte Repositories** → `https://github.com/Tillhnz/HA-Heatingtimes`, Kategorie **Integration**
 2. „Heizplan“ installieren und Home Assistant neu starten
 3. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Heizplan**
 
@@ -24,72 +22,48 @@ Ordner `custom_components/heating_schedule` nach `config/custom_components/` kop
 
 ## Einrichtung
 
-Pro Raum eine Zone anlegen:
-
-| Feld | Beispiel |
-|---|---|
-| Name der Zone | Wohnzimmer |
-| Thermostate | `climate.wohnzimmer_heizung`, `climate.wohnzimmer_fenster` |
-| Temperatur-Presets | Komfort, Eco, Nacht, Abwesend |
-
-Thermostate und Presets lassen sich später über **Konfigurieren** ändern.
-
-### Entstehende Entitäten (Beispiel „Wohnzimmer“)
+Pro Raum eine Zone anlegen: **Name** (z. B. Wohnzimmer) und **Temperatur-Presets** (Standard: Komfort, Eco, Nacht, Abwesend). Die Presets lassen sich später über **Konfigurieren** ändern.
 
 | Entität | Zweck |
 |---|---|
-| `sensor.wohnzimmer_solltemperatur` | Aktuelle Solltemperatur, trägt den Zeitplan für die Karte |
-| `select.wohnzimmer_modus` | Zeitplan / Komfort / Eco / … / Aus |
+| `schedule.wohnzimmer_zeitplan` | Der Wochenplan. State `on`, Attribute `temperature`, `preset`, `preset_name` zeigen den aktuellen Block |
 | `number.wohnzimmer_temperatur_komfort` usw. | Die Temperatur-Variablen |
+
+## Mit RoomMind verwenden
+
+1. In RoomMind beim Raum unter **Zeitplan** die Entität `schedule.wohnzimmer_zeitplan` auswählen.
+2. Fertig: RoomMind liest per `schedule.get_schedule` die Blöcke und nutzt die `temperature` des aktiven Blocks als Ziel. Abwesenheit, Urlaub und manuelle Overrides von RoomMind haben weiterhin Vorrang.
+
+Da die Blöcke den ganzen Tag lückenlos abdecken, ist der Zeitplan immer „an“. Die Komfort/Eco-Temperaturen in RoomMind greifen daher nur als Rückfallwert.
 
 ## Dashboard-Karte
 
-Die Karte wird automatisch geladen. Im Dashboard: **Karte hinzufügen → „Heizplan“**, oder YAML:
+Im Dashboard: **Karte hinzufügen → „Heizplan“**, oder YAML:
 
 ```yaml
 type: custom:heating-schedule-card
-entity: sensor.wohnzimmer_solltemperatur
+entity: schedule.wohnzimmer_zeitplan
 # optional:
 title: Wohnzimmer
+temperature_entity: sensor.wohnzimmer_temperatur   # oder climate.* für Raumtemperatur + Luftfeuchte
 show_presets: true
-show_mode: true
 ```
 
 Falls die Karte nach einem Update nicht erscheint: Browser-Cache leeren bzw. App neu laden.
 
-## Automationen & Dienste
+## Dienst `heating_schedule.set_schedule`
 
-Die Preset-Temperaturen sind normale `number`-Entitäten, z. B. für einen Urlaubsmodus:
-
-```yaml
-action: select.select_option
-target:
-  entity_id: select.wohnzimmer_modus
-data:
-  option: Abwesend
-```
-
-### `heating_schedule.set_schedule`
 ```yaml
 action: heating_schedule.set_schedule
 data:
-  zone_id: Wohnzimmer          # Name oder Entry-ID
+  zone_id: schedule.wohnzimmer_zeitplan   # oder der Zonenname
   days: [mon, tue, wed, thu, fri]
   blocks:
     - { start: "00:00", preset: nacht }
     - { start: "06:30", preset: komfort }
     - { start: "22:00", preset: nacht }
 ```
-Preset-Keys sind die kleingeschriebenen Namen (`Büro` → `buero`).
-
-### `heating_schedule.apply`
-Sendet die aktuelle Solltemperatur erneut an alle Thermostate und verwirft manuelle Änderungen.
-
-## Verhalten im Detail
-
-- Temperaturen werden gesendet beim Start, bei jedem Blockwechsel, bei Änderung des laufenden Presets, des Modus oder des Zeitplans und wenn ein Thermostat wieder online kommt.
-- Ein ausgeschaltetes Thermostat wird beim nächsten Heizblock auf `heat` gestellt; Modus „Aus“ schaltet die Thermostate aus.
-- Zeitplan, Temperaturen und Modus werden in `.storage/heating_schedule.<id>` gespeichert und überstehen Neustarts.
+Preset-Keys sind die kleingeschriebenen Namen (`Büro` → `buero`). Zeitplan und Temperaturen werden in `.storage/heating_schedule.<id>` gespeichert.
 
 ## Lizenz
 MIT

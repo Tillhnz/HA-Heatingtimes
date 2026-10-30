@@ -120,6 +120,46 @@ def default_schedule(preset_keys: list[str]) -> dict[str, list[dict[str, str]]]:
     }
 
 
+HA_DAYS = {
+    "mon": "monday", "tue": "tuesday", "wed": "wednesday", "thu": "thursday",
+    "fri": "friday", "sat": "saturday", "sun": "sunday",
+}
+
+
+def to_ha_schedule(
+    schedule: dict[str, list[dict[str, str]]],
+    presets: list[dict[str, str]],
+    temps: dict[str, float],
+) -> dict[str, list[dict[str, Any]]]:
+    """Wandelt Blöcke in HA-Schedule-Zeitfenster (from/to/data) um.
+
+    Jeder Block wird ein Zeitfenster mit `data.temperature`, sodass die
+    schedule-Entität ganztägig "on" ist und die aktuelle Solltemperatur
+    als Attribut bzw. über `schedule.get_schedule` liefert (z. B. für RoomMind).
+    """
+    names = {p["key"]: p["name"] for p in presets}
+    result: dict[str, list[dict[str, Any]]] = {}
+    for day, ha_day in HA_DAYS.items():
+        blocks = schedule.get(day, [])
+        ranges = []
+        for i, block in enumerate(blocks):
+            end = blocks[i + 1]["start"] if i + 1 < len(blocks) else "24:00"
+            preset = block["preset"]
+            ranges.append(
+                {
+                    "from": f"{block['start']}:00",
+                    "to": f"{end}:00",
+                    "data": {
+                        "temperature": temps.get(preset),
+                        "preset": preset,
+                        "preset_name": names.get(preset, preset),
+                    },
+                }
+            )
+        result[ha_day] = ranges
+    return result
+
+
 def preset_at(schedule: dict[str, list[dict[str, str]]], when: datetime) -> str:
     """Preset, das zum Zeitpunkt `when` aktiv ist."""
     blocks = schedule[DAYS[when.weekday()]]

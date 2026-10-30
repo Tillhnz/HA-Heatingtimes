@@ -1,4 +1,4 @@
-"""Gemeinsame Basis für alle Entitäten einer Heizzone."""
+"""Gemeinsame Basis für die Preset-Entitäten einer Heizzone."""
 from __future__ import annotations
 
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo

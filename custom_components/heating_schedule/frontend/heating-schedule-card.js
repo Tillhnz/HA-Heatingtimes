@@ -2,7 +2,8 @@
  * Heizplan-Karte für Home Assistant – Wochenzeitplan im Tado-Stil.
  * Wird von der Integration "heating_schedule" automatisch geladen.
  */
-const CARD_VERSION = "1.0.0";
+(() => {
+const CARD_VERSION = "2.0.0";
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_SHORT = { mon: "Mo", tue: "Di", wed: "Mi", thu: "Do", fri: "Fr", sat: "Sa", sun: "So" };
 const DAY_LONG = {
@@ -41,6 +42,32 @@ function todayKey() {
   return DAYS[(new Date().getDay() + 6) % 7];
 }
 
+
+/** Aktives Preset zu einem Zeitpunkt. */
+function presetAt(schedule, date) {
+  const blocks = schedule[DAYS[(date.getDay() + 6) % 7]] || [];
+  const m = date.getHours() * 60 + date.getMinutes();
+  let p = blocks[0]?.preset;
+  for (const b of blocks) if (toMin(b.start) <= m) p = b.preset;
+  return p;
+}
+
+/** Nächster Wechsel auf ein anderes Preset (auch über Tagesgrenzen). */
+function nextChange(schedule, now, current) {
+  for (let o = 0; o < 8; o++) {
+    const day = new Date(now);
+    day.setDate(day.getDate() + o);
+    for (const b of schedule[DAYS[(day.getDay() + 6) % 7]] || []) {
+      const at = new Date(day);
+      const m = toMin(b.start);
+      at.setHours(Math.floor(m / 60), m % 60, 0, 0);
+      if (at <= now || b.preset === current) continue;
+      return { at, preset: b.preset };
+    }
+  }
+  return null;
+}
+
 class HeatingScheduleCard extends HTMLElement {
   constructor() {
     super();
@@ -57,7 +84,7 @@ class HeatingScheduleCard extends HTMLElement {
 
   static getStubConfig(hass) {
     const entity = Object.keys(hass.states).find(
-      (id) => id.startsWith("sensor.") && hass.states[id].attributes.schedule && hass.states[id].attributes.zone_id,
+      (id) => id.startsWith("schedule.") && hass.states[id].attributes.blocks && hass.states[id].attributes.zone_id,
     );
     return { entity: entity || "" };
   }
@@ -65,30 +92,24 @@ class HeatingScheduleCard extends HTMLElement {
   static getConfigForm() {
     return {
       schema: [
-        { name: "entity", required: true, selector: { entity: { domain: "sensor", integration: "heating_schedule" } } },
+        { name: "entity", required: true, selector: { entity: { domain: "schedule", integration: "heating_schedule" } } },
         { name: "title", selector: { text: {} } },
-        {
-          type: "grid",
-          name: "",
-          schema: [
-            { name: "show_presets", selector: { boolean: {} } },
-            { name: "show_mode", selector: { boolean: {} } },
-          ],
-        },
+        { name: "temperature_entity", selector: { entity: { domain: ["sensor", "climate"] } } },
+        { name: "show_presets", selector: { boolean: {} } },
       ],
       computeLabel: (s) =>
         ({
-          entity: "Heizplan-Sensor (Solltemperatur)",
+          entity: "Zeitplan (schedule-Entität)",
           title: "Titel (optional)",
+          temperature_entity: "Raumtemperatur anzeigen (optional)",
           show_presets: "Temperatur-Presets anzeigen",
-          show_mode: "Modus-Auswahl anzeigen",
         })[s.name],
     };
   }
 
   setConfig(config) {
-    if (!config || !config.entity) throw new Error("Bitte 'entity' angeben (Sensor 'Solltemperatur' einer Heizzone).");
-    this._config = { show_presets: true, show_mode: true, ...config };
+    if (!config || !config.entity) throw new Error("Bitte 'entity' angeben (schedule-Entität einer Heizzone).");
+    this._config = { show_presets: true, ...config };
     this._sig = null;
     if (this._hass) this._render();
   }
@@ -114,12 +135,7 @@ class HeatingScheduleCard extends HTMLElement {
   _signature() {
     const st = this._hass?.states[this._config?.entity];
     if (!st) return "missing";
-    const a = st.attributes;
-    const ids = [
-      a.mode_entity,
-      ...(a.climate_entities || []),
-      ...(a.presets || []).map((p) => p.entity_id),
-    ].filter(Boolean);
+    const ids = [this._config.temperature_entity, ...(st.attributes.presets || []).map((p) => p.entity_id)].filter(Boolean);
     return [st.last_updated, ...ids.map((id) => this._hass.states[id]?.last_updated)].join("|");
   }
 
@@ -140,14 +156,13 @@ class HeatingScheduleCard extends HTMLElement {
       };
     });
     const pmap = Object.fromEntries(presets.map((p) => [p.key, p]));
-    const climate = (a.climate_entities || []).map((id) => hass.states[id]).find(Boolean);
-    const modeEnt = a.mode_entity && hass.states[a.mode_entity];
+    const schedule = a.blocks || {};
+    const now = new Date();
+    const current = presetAt(schedule, now);
     return {
-      st, a, presets, pmap, climate,
-      target: num(st.state),
-      mode: modeEnt?.state ?? a.mode,
-      modeOptions: modeEnt?.attributes.options || [],
-      schedule: a.schedule || {},
+      st, a, presets, pmap, schedule, current,
+      next: nextChange(schedule, now, current),
+      roomEnt: this._config.temperature_entity && hass.states[this._config.temperature_entity],
     };
   }
 
@@ -175,7 +190,6 @@ class HeatingScheduleCard extends HTMLElement {
       ${STYLE}
       <ha-card>
         ${this._headerHTML(d)}
-        ${this._config.show_mode && d.modeOptions.length ? this._modeHTML(d) : ""}
         ${this._config.show_presets ? this._presetsHTML(d) : ""}
         <div class="section">
           <div class="section-head">
@@ -195,50 +209,39 @@ class HeatingScheduleCard extends HTMLElement {
   }
 
   _headerHTML(d) {
-    const room = num(d.climate?.attributes.current_temperature);
-    const hum = num(d.climate?.attributes.current_humidity);
-    const heating = d.climate?.attributes.hvac_action === "heating";
-    const off = d.target == null;
-    const color = tempColor(d.target);
-    const preset = d.pmap[d.a.current_preset];
+    const preset = d.pmap[d.current];
+    const target = preset?.temperature ?? null;
+    const r = d.roomEnt;
+    const isClimate = String(this._config.temperature_entity || "").startsWith("climate.");
+    const room = r ? num(isClimate ? r.attributes.current_temperature : r.state) : null;
+    const hum = r && isClimate ? num(r.attributes.current_humidity) : null;
+    const heating = r?.attributes.hvac_action === "heating";
     let next = "";
-    if (d.a.next_change && d.pmap[d.a.next_preset]) {
-      const dt = new Date(d.a.next_change);
+    if (d.next && d.pmap[d.next.preset]) {
+      const dt = d.next.at;
       const sameDay = dt.toDateString() === new Date().toDateString();
       const when = `${sameDay ? "" : DAY_SHORT[DAYS[(dt.getDay() + 6) % 7]] + " "}${fmtMin(dt.getHours() * 60 + dt.getMinutes())}`;
-      const np = d.pmap[d.a.next_preset];
+      const np = d.pmap[d.next.preset];
       next = `Ab ${when}: ${esc(np.name)} ${fmtTemp(np.temperature)}`;
-    } else if (d.mode && d.mode !== "Zeitplan") {
-      next = d.mode === "Aus" ? "Zeitplan pausiert" : "Manuell – Zeitplan pausiert";
     }
     return `
-      <div class="hero" style="--hero:${color}">
+      <div class="hero" style="--hero:${tempColor(target)}">
         <div class="hero-top">
           <div class="zone">${esc(this._config.title || d.a.zone_name || "Heizung")}</div>
           ${heating ? `<div class="badge"><ha-icon icon="mdi:fire"></ha-icon>heizt</div>` : ""}
         </div>
         <div class="hero-main">
-          <div class="target">${off ? "AUS" : fmtTemp(d.target)}</div>
+          <div class="target">${fmtTemp(target)}</div>
           <div class="hero-meta">
-            ${preset && !off ? `<div class="preset-name">${esc(preset.name)}</div>` : ""}
+            ${preset ? `<div class="preset-name">${esc(preset.name)}</div>` : ""}
             ${next ? `<div class="next">${next}</div>` : ""}
           </div>
         </div>
-        <div class="hero-room">
+        ${room != null || hum != null ? `<div class="hero-room">
           ${room != null ? `<span><ha-icon icon="mdi:thermometer"></ha-icon>Raum ${fmtTemp(room)}</span>` : ""}
           ${hum != null ? `<span><ha-icon icon="mdi:water-percent"></ha-icon>${hum.toFixed(0)} %</span>` : ""}
-        </div>
+        </div>` : ""}
       </div>`;
-  }
-
-  _modeHTML(d) {
-    return `<div class="chips">${d.modeOptions
-      .map((opt) => {
-        const icon = opt === "Zeitplan" ? "mdi:calendar-clock" : opt === "Aus" ? "mdi:power" : "";
-        return `<button class="chip ${opt === d.mode ? "sel" : ""}" data-act="mode" data-opt="${esc(opt)}">
-          ${icon ? `<ha-icon icon="${icon}"></ha-icon>` : ""}${esc(opt)}</button>`;
-      })
-      .join("")}</div>`;
   }
 
   _presetsHTML(d) {
@@ -344,9 +347,6 @@ class HeatingScheduleCard extends HTMLElement {
       case "day":
         this._day = el.dataset.day;
         this._render();
-        break;
-      case "mode":
-        this._hass.callService("select", "select_option", { entity_id: d.a.mode_entity, option: el.dataset.opt });
         break;
       case "inc":
       case "dec":
@@ -544,3 +544,4 @@ if (!customElements.get("heating-schedule-card")) {
   });
   console.info(`%c HEIZPLAN-KARTE %c ${CARD_VERSION} `, "background:#f59e0b;color:#fff;font-weight:700", "background:#333;color:#fff");
 }
+})();

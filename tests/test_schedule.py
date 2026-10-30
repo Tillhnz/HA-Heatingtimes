@@ -64,3 +64,20 @@ def test_transition_skips_midnight_when_preset_unchanged():
 def test_no_transition_when_constant():
     sched = {d: [{"start": "00:00", "preset": "eco"}] for d in s.DAYS}
     assert s.next_transition(sched, datetime(2026, 10, 30, 12, 0, tzinfo=TZ)) is None
+
+
+def test_to_ha_schedule_matches_schedule_helper_format():
+    presets = s.parse_presets("Komfort, Eco, Nacht")
+    temps = {"komfort": 21.5, "eco": 19.0, "nacht": 17.0}
+    ha = s.to_ha_schedule(s.default_schedule(["komfort", "eco", "nacht"]), presets, temps)
+    assert set(ha) == {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+    mon = ha["monday"]
+    assert mon[0] == {
+        "from": "00:00:00",
+        "to": "06:00:00",
+        "data": {"temperature": 17.0, "preset": "nacht", "preset_name": "Nacht"},
+    }
+    assert mon[1]["data"]["temperature"] == 21.5
+    assert mon[-1]["to"] == "24:00:00"
+    # lückenlos: jedes Fenster endet, wo das nächste beginnt
+    assert all(a["to"] == b["from"] for a, b in zip(mon, mon[1:]))

@@ -3,21 +3,18 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
+try:  # HA >= 2026.12 nutzt probatio statt voluptuous
+    import probatio as vol
+except ImportError:
+    import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
-from homeassistant.helpers.selector import (
-    EntitySelector,
-    EntitySelectorConfig,
-    TextSelector,
-)
+from homeassistant.helpers.selector import TextSelector
 
-from .const import CONF_CLIMATES, CONF_PRESETS, DEFAULT_PRESET_NAMES, DOMAIN
+from .const import CONF_PRESETS, DEFAULT_PRESET_NAMES, DOMAIN
 from .schedule import parse_presets
-
-CLIMATE_SELECTOR = EntitySelector(EntitySelectorConfig(domain="climate", multiple=True))
 
 
 def _clean_presets(raw: str) -> str | None:
@@ -28,9 +25,7 @@ def _clean_presets(raw: str) -> str | None:
 class HeatingScheduleConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             presets = _clean_presets(user_input[CONF_PRESETS])
@@ -38,17 +33,13 @@ class HeatingScheduleConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_PRESETS] = "no_presets"
             else:
                 return self.async_create_entry(
-                    title=user_input[CONF_NAME],
-                    data={**user_input, CONF_PRESETS: presets},
+                    title=user_input[CONF_NAME], data={**user_input, CONF_PRESETS: presets}
                 )
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): TextSelector(),
-                vol.Required(CONF_CLIMATES): CLIMATE_SELECTOR,
-                vol.Required(
-                    CONF_PRESETS, default=", ".join(DEFAULT_PRESET_NAMES)
-                ): TextSelector(),
+                vol.Required(CONF_PRESETS, default=", ".join(DEFAULT_PRESET_NAMES)): TextSelector(),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -60,9 +51,7 @@ class HeatingScheduleConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HeatingScheduleOptionsFlow(OptionsFlow):
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         current = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
@@ -70,16 +59,9 @@ class HeatingScheduleOptionsFlow(OptionsFlow):
             if presets is None:
                 errors[CONF_PRESETS] = "no_presets"
             else:
-                return self.async_create_entry(data={**user_input, CONF_PRESETS: presets})
+                return self.async_create_entry(data={CONF_PRESETS: presets})
 
         schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_CLIMATES, default=current.get(CONF_CLIMATES, [])
-                ): CLIMATE_SELECTOR,
-                vol.Required(
-                    CONF_PRESETS, default=current.get(CONF_PRESETS, "")
-                ): TextSelector(),
-            }
+            {vol.Required(CONF_PRESETS, default=current.get(CONF_PRESETS, "")): TextSelector()}
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

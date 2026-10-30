@@ -25,10 +25,3 @@ set_schedule:
       example: '[{"start": "00:00", "preset": "nacht"}, {"start": "06:30", "preset": "komfort"}, {"start": "22:00", "preset": "nacht"}]'
       selector:
         object:
-apply:
-  fields:
-    zone_id:
-      required: true
-      example: "Wohnzimmer"
-      selector:
-        text:
