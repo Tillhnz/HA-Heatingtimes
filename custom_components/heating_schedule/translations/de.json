@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Neue Heizzone",
+        "description": "Eine Zone fasst ein oder mehrere Thermostate zusammen, die demselben Wochenplan folgen.",
+        "data": {
+          "name": "Name der Zone",
+          "climate_entities": "Thermostate",
+          "presets": "Temperatur-Presets (kommagetrennt)"
+        },
+        "data_description": {
+          "presets": "Jedes Preset wird eine einstellbare Temperatur-Entität, z. B. Komfort, Eco, Nacht, Abwesend."
+        }
+      }
+    },
+    "error": {
+      "no_presets": "Bitte mindestens ein gültiges Preset angeben (nicht 'Zeitplan' oder 'Aus')."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heizzone bearbeiten",
+        "data": {
+          "climate_entities": "Thermostate",
+          "presets": "Temperatur-Presets (kommagetrennt)"
+        }
+      }
+    },
+    "error": {
+      "no_presets": "Bitte mindestens ein gültiges Preset angeben (nicht 'Zeitplan' oder 'Aus')."
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Zeitplan setzen",
+      "description": "Setzt die Zeitblöcke für einen oder mehrere Wochentage.",
+      "fields": {
+        "zone_id": {
+          "name": "Zone",
+          "description": "Name oder ID der Heizzone."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Wochentage, für die die Blöcke gelten."
+        },
+        "blocks": {
+          "name": "Blöcke",
+          "description": "Liste aus {start: 'HH:MM', preset: '<key>'}. Der erste Block beginnt immer um 00:00."
+        }
+      }
+    },
+    "apply": {
+      "name": "Zeitplan anwenden",
+      "description": "Sendet die aktuelle Solltemperatur erneut an die Thermostate (verwirft manuelle Änderungen).",
+      "fields": {
+        "zone_id": {
+          "name": "Zone",
+          "description": "Name oder ID der Heizzone."
+        }
+      }
+    }
+  },
+  "selector": {
+    "days": {
+      "options": {
+        "mon": "Montag",
+        "tue": "Dienstag",
+        "wed": "Mittwoch",
+        "thu": "Donnerstag",
+        "fri": "Freitag",
+        "sat": "Samstag",
+        "sun": "Sonntag"
+      }
+    }
+  }
+}

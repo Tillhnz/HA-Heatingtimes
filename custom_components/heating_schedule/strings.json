@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "New heating zone",
+        "description": "A zone groups one or more thermostats that follow the same weekly schedule.",
+        "data": {
+          "name": "Zone name",
+          "climate_entities": "Thermostats",
+          "presets": "Temperature presets (comma separated)"
+        },
+        "data_description": {
+          "presets": "Each preset becomes an adjustable temperature entity, e.g. Comfort, Eco, Night, Away."
+        }
+      }
+    },
+    "error": {
+      "no_presets": "Please enter at least one valid preset (not 'Zeitplan' or 'Aus')."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit heating zone",
+        "data": {
+          "climate_entities": "Thermostats",
+          "presets": "Temperature presets (comma separated)"
+        }
+      }
+    },
+    "error": {
+      "no_presets": "Please enter at least one valid preset (not 'Zeitplan' or 'Aus')."
+    }
+  },
+  "services": {
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Sets the time blocks for one or more weekdays.",
+      "fields": {
+        "zone_id": {
+          "name": "Zone",
+          "description": "Name or ID of the heating zone."
+        },
+        "days": {
+          "name": "Days",
+          "description": "Weekdays the blocks apply to."
+        },
+        "blocks": {
+          "name": "Blocks",
+          "description": "List of {start: 'HH:MM', preset: '<key>'}. The first block always starts at 00:00."
+        }
+      }
+    },
+    "apply": {
+      "name": "Apply schedule",
+      "description": "Re-sends the current target temperature to the thermostats (discards manual changes).",
+      "fields": {
+        "zone_id": {
+          "name": "Zone",
+          "description": "Name or ID of the heating zone."
+        }
+      }
+    }
+  },
+  "selector": {
+    "days": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    }
+  }
+}

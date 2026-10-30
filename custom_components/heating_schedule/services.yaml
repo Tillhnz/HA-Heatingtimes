@@ -1,0 +1,34 @@
+set_schedule:
+  fields:
+    zone_id:
+      required: true
+      example: "Wohnzimmer"
+      selector:
+        text:
+    days:
+      required: true
+      example: ["mon", "tue", "wed", "thu", "fri"]
+      selector:
+        select:
+          multiple: true
+          options:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+          translation_key: days
+    blocks:
+      required: true
+      example: '[{"start": "00:00", "preset": "nacht"}, {"start": "06:30", "preset": "komfort"}, {"start": "22:00", "preset": "nacht"}]'
+      selector:
+        object:
+apply:
+  fields:
+    zone_id:
+      required: true
+      example: "Wohnzimmer"
+      selector:
+        text:
