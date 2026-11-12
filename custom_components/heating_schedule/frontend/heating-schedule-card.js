@@ -3,7 +3,7 @@
  * Wird von der Integration "heating_schedule" automatisch geladen.
  */
 (() => {
-const CARD_VERSION = "2.0.0";
+const CARD_VERSION = "2.0.1";
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_SHORT = { mon: "Mo", tue: "Di", wed: "Mi", thu: "Do", fri: "Fr", sat: "Sa", sun: "So" };
 const DAY_LONG = {
@@ -36,6 +36,11 @@ function tempColor(t) {
   const c = Math.min(1, Math.max(0, (t - 15) / 9));
   const hue = 205 - c * 190;
   return `hsl(${hue.toFixed(0)} 80% ${c < 0.5 ? 50 : 54}%)`;
+}
+
+function daysLabel(days) {
+  if (days.length === 7) return "alle Tage";
+  return DAYS.filter((d) => days.includes(d)).map((d) => DAY_SHORT[d]).join(", ");
 }
 
 function todayKey() {
@@ -76,6 +81,10 @@ class HeatingScheduleCard extends HTMLElement {
     this._editing = false;
     this._draft = null;
     this._pending = {};
+    this._override = null;
+    this._overrideStamp = null;
+    this._saving = false;
+    this._notice = null;
     this._timers = {};
     this._sig = null;
     this.shadowRoot.addEventListener("click", (e) => this._onClick(e));
@@ -119,6 +128,9 @@ class HeatingScheduleCard extends HTMLElement {
     const sig = this._signature();
     if (sig === this._sig) return;
     this._sig = sig;
+    // lokale Kopie nach dem Speichern verwerfen, sobald HA den neuen Zustand liefert
+    const st = hass.states[this._config?.entity];
+    if (this._override && st && st.last_updated !== this._overrideStamp) this._override = null;
     this._clearSettledPending();
     if (!this._editing) this._render();
   }
@@ -156,7 +168,7 @@ class HeatingScheduleCard extends HTMLElement {
       };
     });
     const pmap = Object.fromEntries(presets.map((p) => [p.key, p]));
-    const schedule = a.blocks || {};
+    const schedule = { ...(a.blocks || {}), ...(this._override || {}) };
     const now = new Date();
     const current = presetAt(schedule, now);
     return {
@@ -194,6 +206,7 @@ class HeatingScheduleCard extends HTMLElement {
         <div class="section">
           <div class="section-head">
             <span>Zeitplan</span>
+            ${this._notice && !this._editing ? `<span class="notice"><ha-icon icon="mdi:check"></ha-icon>${esc(this._notice)}</span>` : ""}
             ${this._editing ? "" : `<button class="link" data-act="edit"><ha-icon icon="mdi:pencil"></ha-icon>Bearbeiten</button>`}
           </div>
           <div class="days">
@@ -429,15 +442,32 @@ class HeatingScheduleCard extends HTMLElement {
     const blocks = [...this._draft]
       .sort((a, b) => toMin(a.start) - toMin(b.start))
       .map((b, i) => ({ start: i === 0 ? "00:00" : b.start, preset: b.preset }));
+    if (this._saving) return;
+    this._saving = true;
+    const stamp = d.st.last_updated;
     try {
       await this._hass.callService("heating_schedule", "set_schedule", { zone_id: d.a.zone_id, days, blocks });
+      // sofort anzeigen, auch bevor HA den neuen Zustand schickt
+      this._override = { ...(this._override || {}), ...Object.fromEntries(days.map((day) => [day, blocks])) };
+      this._overrideStamp = stamp;
       this._editing = false;
       this._draft = null;
       this._error = null;
+      this._showNotice(`Gespeichert für ${daysLabel(days)}`);
     } catch (err) {
       this._error = `Speichern fehlgeschlagen: ${err.message || err}`;
     }
+    this._saving = false;
     this._render();
+  }
+
+  _showNotice(text) {
+    this._notice = text;
+    clearTimeout(this._noticeTimer);
+    this._noticeTimer = setTimeout(() => {
+      this._notice = null;
+      if (!this._editing) this._render();
+    }, 3000);
   }
 }
 
@@ -518,6 +548,8 @@ const STYLE = `<style>
 
   .editor { display: grid; gap: 8px; }
   .edit-title { font-weight: 600; margin-bottom: 2px; }
+  .notice { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px; text-transform: none;
+    letter-spacing: 0; font-weight: 500; font-size: .85rem; color: var(--success-color, #2e9d57); }
   .erow { display: grid; grid-template-columns: 4px 104px 1fr 34px; align-items: center; gap: 8px; }
   .erow input, .erow select { font: inherit; color: var(--primary-text-color); padding: 7px 8px; border-radius: 9px;
     border: 1px solid var(--divider-color); background: var(--card-background-color, var(--ha-card-background, #fff));

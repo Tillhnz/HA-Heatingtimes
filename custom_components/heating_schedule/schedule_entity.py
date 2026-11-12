@@ -73,6 +73,6 @@ class HeatingSchedule(Schedule):
                 }
                 for p in c.presets
             ],
-            blocks=c.schedule,
+            blocks=c.blocks_snapshot(),
         )
         return attrs

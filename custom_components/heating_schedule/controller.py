@@ -77,9 +77,20 @@ class ZoneController:
         self.temps[key] = round(float(value), 1)
         self._changed()
 
+    def blocks_snapshot(self) -> dict[str, list[dict[str, str]]]:
+        """Unabhängige Kopie des Wochenplans für State-Attribute.
+
+        HA vergleicht neue mit alten Attributen und kopiert dabei nur flach.
+        Ohne eigene Kopie wäre das alte Attribut dasselbe Objekt wie der
+        geänderte Plan, HA sähe keine Änderung und die Karte bliebe alt.
+        """
+        return copy.deepcopy(self.schedule)
+
     @callback
     def set_schedule(self, days: list[str], blocks: list[dict[str, Any]]) -> None:
         normalized = normalize_blocks(blocks, self.preset_keys, strict=True)
-        for day in days:
-            self.schedule[day] = copy.deepcopy(normalized)
+        # neues Dict statt In-place-Änderung, damit nichts auf alte States durchschlägt
+        self.schedule = {
+            day: copy.deepcopy(normalized) if day in days else self.schedule[day] for day in DAYS
+        }
         self._changed()
