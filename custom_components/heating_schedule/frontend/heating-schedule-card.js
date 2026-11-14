@@ -3,7 +3,7 @@
  * Wird von der Integration "heating_schedule" automatisch geladen.
  */
 (() => {
-const CARD_VERSION = "2.0.1";
+const CARD_VERSION = "2.0.2";
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_SHORT = { mon: "Mo", tue: "Di", wed: "Mi", thu: "Do", fri: "Fr", sat: "Sa", sun: "So" };
 const DAY_LONG = {
@@ -202,6 +202,7 @@ class HeatingScheduleCard extends HTMLElement {
       ${STYLE}
       <ha-card>
         ${this._headerHTML(d)}
+        <div class="body${this._config.show_presets ? " split" : ""}">
         ${this._config.show_presets ? this._presetsHTML(d) : ""}
         <div class="section">
           <div class="section-head">
@@ -217,6 +218,7 @@ class HeatingScheduleCard extends HTMLElement {
           </div>
           <div class="timeline-wrap">${this._timelineHTML(blocks, d.pmap)}</div>
           ${this._editing ? this._editorHTML(blocks, d) : this._blockListHTML(blocks, d)}
+        </div>
         </div>
       </ha-card>`;
   }
@@ -474,6 +476,16 @@ class HeatingScheduleCard extends HTMLElement {
 const STYLE = `<style>
   :host { --hs-off: var(--disabled-text-color, #9e9e9e); --hs-radius: 14px; }
   ha-card { overflow: hidden; padding-bottom: 8px; }
+
+  /* breite Karte (Laptop, volle Dashboard-Breite): Temperaturen links, Zeitplan rechts */
+  ha-card { display: block; container-type: inline-size; }
+  @container (min-width: 720px) {
+    .body.split { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr); gap: 0 8px; align-items: start; }
+    .body.split > .section:first-child { padding-right: 0; }
+  }
+  @container (min-width: 1100px) {
+    .body.split { grid-template-columns: minmax(300px, 1fr) minmax(0, 3fr); }
+  }
   button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
   ha-icon { --mdc-icon-size: 18px; }
   .warn { padding: 12px 16px; color: var(--error-color, #db4437); }
