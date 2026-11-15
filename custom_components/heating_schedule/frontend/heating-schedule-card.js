@@ -3,7 +3,7 @@
  * Wird von der Integration "heating_schedule" automatisch geladen.
  */
 (() => {
-const CARD_VERSION = "2.0.2";
+const CARD_VERSION = "2.1.0";
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_SHORT = { mon: "Mo", tue: "Di", wed: "Mi", thu: "Do", fri: "Fr", sat: "Sa", sun: "So" };
 const DAY_LONG = {
@@ -89,6 +89,13 @@ class HeatingScheduleCard extends HTMLElement {
     this._sig = null;
     this.shadowRoot.addEventListener("click", (e) => this._onClick(e));
     this.shadowRoot.addEventListener("change", (e) => this._onChange(e));
+    this.shadowRoot.addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" || e.key === " ") && e.target.closest?.('[data-act="toggle"]')) {
+        e.preventDefault();
+        this._toggle();
+      }
+    });
+    this._expanded = null;
   }
 
   static getStubConfig(hass) {
@@ -105,6 +112,7 @@ class HeatingScheduleCard extends HTMLElement {
         { name: "title", selector: { text: {} } },
         { name: "temperature_entity", selector: { entity: { domain: ["sensor", "climate"] } } },
         { name: "show_presets", selector: { boolean: {} } },
+        { name: "collapsed", selector: { boolean: {} } },
       ],
       computeLabel: (s) =>
         ({
@@ -112,13 +120,17 @@ class HeatingScheduleCard extends HTMLElement {
           title: "Titel (optional)",
           temperature_entity: "Raumtemperatur anzeigen (optional)",
           show_presets: "Temperatur-Presets anzeigen",
+          collapsed: "Standardmäßig eingeklappt",
         })[s.name],
     };
   }
 
   setConfig(config) {
     if (!config || !config.entity) throw new Error("Bitte 'entity' angeben (schedule-Entität einer Heizzone).");
-    this._config = { show_presets: true, ...config };
+    const prevCollapsed = this._config?.collapsed;
+    this._config = { show_presets: true, collapsed: true, ...config };
+    // Startzustand aus der Konfiguration; nur neu setzen, wenn sich die Option ändert
+    if (this._expanded === null || prevCollapsed !== this._config.collapsed) this._expanded = !this._config.collapsed;
     this._sig = null;
     if (this._hass) this._render();
   }
@@ -136,7 +148,7 @@ class HeatingScheduleCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 7;
+    return this._expanded ? 7 : 2;
   }
 
   getGridOptions() {
@@ -200,9 +212,9 @@ class HeatingScheduleCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       ${STYLE}
-      <ha-card>
+      <ha-card class="${this._expanded ? "open" : "closed"}">
         ${this._headerHTML(d)}
-        <div class="body${this._config.show_presets ? " split" : ""}">
+        ${this._expanded ? `<div class="body${this._config.show_presets ? " split" : ""}">
         ${this._config.show_presets ? this._presetsHTML(d) : ""}
         <div class="section">
           <div class="section-head">
@@ -219,7 +231,7 @@ class HeatingScheduleCard extends HTMLElement {
           <div class="timeline-wrap">${this._timelineHTML(blocks, d.pmap)}</div>
           ${this._editing ? this._editorHTML(blocks, d) : this._blockListHTML(blocks, d)}
         </div>
-        </div>
+        </div>` : ""}
       </ha-card>`;
   }
 
@@ -240,10 +252,14 @@ class HeatingScheduleCard extends HTMLElement {
       next = `Ab ${when}: ${esc(np.name)} ${fmtTemp(np.temperature)}`;
     }
     return `
-      <div class="hero" style="--hero:${tempColor(target)}">
+      <div class="hero" style="--hero:${tempColor(target)}" data-act="toggle" role="button" tabindex="0"
+        aria-expanded="${this._expanded}" title="${this._expanded ? "Einklappen" : "Zeitplan anzeigen"}">
         <div class="hero-top">
           <div class="zone">${esc(this._config.title || d.a.zone_name || "Heizung")}</div>
-          ${heating ? `<div class="badge"><ha-icon icon="mdi:fire"></ha-icon>heizt</div>` : ""}
+          <div class="hero-right">
+            ${heating ? `<div class="badge"><ha-icon icon="mdi:fire"></ha-icon>heizt</div>` : ""}
+            <ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon>
+          </div>
         </div>
         <div class="hero-main">
           <div class="target">${fmtTemp(target)}</div>
@@ -359,6 +375,9 @@ class HeatingScheduleCard extends HTMLElement {
     if (!d) return;
 
     switch (act) {
+      case "toggle":
+        this._toggle();
+        break;
       case "day":
         this._day = el.dataset.day;
         this._render();
@@ -394,6 +413,11 @@ class HeatingScheduleCard extends HTMLElement {
         this._save(d, [...new Set([this._day, ...COPY_TARGETS[Number(el.dataset.i)].days])]);
         break;
     }
+  }
+
+  _toggle() {
+    this._expanded = !this._expanded;
+    this._render();
   }
 
   _onChange(e) {
@@ -492,7 +516,18 @@ const STYLE = `<style>
 
   .hero { background: linear-gradient(135deg, var(--hero), color-mix(in srgb, var(--hero) 70%, #000));
     color: #fff; padding: 16px 18px 14px; transition: background .4s; }
-  .hero-top { display: flex; justify-content: space-between; align-items: center; }
+  .hero-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hero { cursor: pointer; user-select: none; outline: none; }
+  .hero:focus-visible { box-shadow: inset 0 0 0 3px rgba(255,255,255,.75); }
+  .hero-right { display: flex; align-items: center; gap: 8px; }
+  .chevron { --mdc-icon-size: 24px; transition: transform .2s ease; opacity: .9; }
+  ha-card.open .chevron { transform: rotate(180deg); }
+  ha-card.closed { padding-bottom: 0; }
+  ha-card.closed .hero { padding-bottom: 12px; }
+  ha-card.closed .target { font-size: 2.4rem; }
+  ha-card.closed .hero-main { margin-top: 2px; }
+  ha-card.closed .hero-room { margin-top: 6px; }
+  @media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }
   .zone { font-size: 1.05rem; font-weight: 600; letter-spacing: .2px; opacity: .95; }
   .badge { display: flex; align-items: center; gap: 4px; font-size: .8rem; background: rgba(255,255,255,.22);
     padding: 3px 9px; border-radius: 99px; }

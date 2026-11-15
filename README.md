@@ -47,6 +47,7 @@ entity: schedule.wohnzimmer_zeitplan
 title: Wohnzimmer
 temperature_entity: sensor.wohnzimmer_temperatur   # oder climate.* für Raumtemperatur + Luftfeuchte
 show_presets: true
+collapsed: true        # Standard: eingeklappt, Tippen auf den Kopf klappt auf
 ```
 
 Falls die Karte nach einem Update nicht erscheint: Browser-Cache leeren bzw. App neu laden.
