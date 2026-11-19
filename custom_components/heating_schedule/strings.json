@@ -45,7 +45,7 @@
         },
         "blocks": {
           "name": "Blocks",
-          "description": "List of {start: 'HH:MM', preset: '<key>'}. The first block always starts at 00:00."
+          "description": "List of {start: 'HH:MM', preset: 'PRESET_KEY'}. The first block always starts at 00:00."
         }
       }
     }
